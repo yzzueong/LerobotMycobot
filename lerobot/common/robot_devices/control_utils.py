@@ -26,6 +26,8 @@ from functools import cache
 
 import cv2
 import torch
+import keyboard as kb
+import numpy as np
 from deepdiff import DeepDiff
 from termcolor import colored
 
@@ -177,7 +179,15 @@ def warmup_record(
     display_cameras,
     fps,
 ):
-    control_loop(
+    # control_loop(
+    #     robot=robot,
+    #     control_time_s=warmup_time_s,
+    #     display_cameras=display_cameras,
+    #     events=events,
+    #     fps=fps,
+    #     teleoperate=enable_teleoperation,
+    # )
+    control_loop_mycobot(
         robot=robot,
         control_time_s=warmup_time_s,
         display_cameras=display_cameras,
@@ -197,16 +207,30 @@ def record_episode(
     fps,
     single_task,
 ):
-    control_loop(
+    # control_loop(
+    #     robot=robot,
+    #     control_time_s=episode_time_s,
+    #     display_cameras=display_cameras,
+    #     dataset=dataset,
+    #     events=events,
+    #     policy=policy,
+    #     fps=fps,
+    #     teleoperate=policy is None,
+    #     single_task=single_task,
+    # )
+    control_loop_mycobot(
         robot=robot,
         control_time_s=episode_time_s,
         display_cameras=display_cameras,
         dataset=dataset,
         events=events,
         policy=policy,
+        device=device,
+        use_amp=use_amp,
         fps=fps,
         teleoperate=policy is None,
         single_task=single_task,
+        record=True,
     )
 
 
@@ -288,13 +312,220 @@ def reset_environment(robot, events, reset_time_s, fps):
     if has_method(robot, "teleop_safety_stop"):
         robot.teleop_safety_stop()
 
-    control_loop(
+    # control_loop(
+    #     robot=robot,
+    #     control_time_s=reset_time_s,
+    #     events=events,
+    #     fps=fps,
+    #     teleoperate=True,
+    # )
+    robot.mc.send_angles([0, 0, 0, 0, 0, 0], 40)
+    robot.mc.set_gripper_state(0, 40)
+    control_loop_mycobot(
         robot=robot,
         control_time_s=reset_time_s,
         events=events,
         fps=fps,
         teleoperate=True,
     )
+
+
+@safe_stop_image_writer
+def control_loop_mycobot(
+    robot,
+    control_time_s=None,
+    teleoperate=False,
+    display_cameras=False,
+    dataset: LeRobotDataset | None = None,
+    events=None,
+    policy=None,
+    device: torch.device | str | None = None,
+    use_amp: bool | None = None,
+    fps: int | None = None,
+    single_task: str | None = None,
+    record=False,
+):
+    # TODO(rcadene): Add option to record logs
+    if not robot.is_connected:
+        robot.connect()
+
+    if events is None:
+        events = {"exit_early": False}
+
+    if control_time_s is None:
+        control_time_s = float("inf")
+
+    if teleoperate and policy is not None:
+        raise ValueError("When `teleoperate` is True, `policy` should be None.")
+
+    if dataset is not None and single_task is None:
+        raise ValueError("You need to provide a task as argument in `single_task`.")
+
+    if dataset is not None and fps is not None and dataset.fps != fps:
+        raise ValueError(f"The dataset fps should be equal to requested fps ({dataset['fps']} != {fps}).")
+
+    if isinstance(device, str):
+        device = get_safe_torch_device(device)
+
+    timestamp = 0
+    start_episode_t = time.perf_counter()
+
+    if teleoperate:
+        if record:
+            # collect_data
+
+            # first step: drag robot arm to do the task
+            record_list = []
+            recording = True
+            robot.mc.release_all_servos(1)
+
+            def _record():
+                while recording:
+                    angles, gripper = None, None
+                    while not angles or not gripper:
+                        angles = robot.mc.get_angles()
+                        gripper = robot.mc.get_gripper_value()
+                    gripper = 1 if gripper <= robot.gripper_open_close_threshold else 0
+
+                    if angles:
+                        record_list.append(angles + [gripper])
+                        time.sleep(0.1)
+
+            print("start recording action. Press s to stop recording...")
+            start_t = time.time()
+            record_t = threading.Thread(target=_record, daemon=True)
+            record_t.start()
+            kb.wait('s')
+            recording = False
+            record_t.join()
+            end_t = time.time()
+            print(f"stop recording action. time duration {end_t - start_t}s. record points count {len(record_list)}")
+
+            # second step: replay the trajectory and collect data
+            print("start replay action and collect data...")
+            for pre_angles, after_angles in zip(record_list, record_list[1:]):
+                start_loop_t = time.perf_counter()
+                robot.mc.send_angles(pre_angles[:-1], 40)  # joints
+                robot.mc.set_gripper_state(pre_angles[-1], 40)  # gripper
+
+                state = torch.from_numpy(np.array(pre_angles)).to(torch.float32)
+                after_action = torch.from_numpy(np.array(after_angles)).to(torch.float32)
+
+                images = {}
+                for name in robot.cameras:
+                    before_camread_t = time.perf_counter()
+                    images[name] = robot.cameras[name].async_read()
+                    images[name] = torch.from_numpy(images[name])
+                    robot.logs[f"read_camera_{name}_dt_s"] = robot.cameras[name].logs["delta_timestamp_s"]
+                    robot.logs[f"async_read_camera_{name}_dt_s"] = time.perf_counter() - before_camread_t
+
+                # Populate output dictionaries
+                observation, action = {}, {}
+                observation["observation.state"] = state
+                action["action"] = after_action
+                for name in robot.cameras:
+                    observation[f"observation.images.{name}"] = images[name]
+                if dataset is not None:
+                    frame = {**observation, **action, "task": single_task}
+                    dataset.add_frame(frame)
+                if display_cameras and not is_headless():
+                    image_keys = [key for key in observation if "image" in key]
+                    for key in image_keys:
+                        cv2.imshow(key, cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR))
+                    cv2.waitKey(1)
+                if fps is not None:
+                    dt_s = time.perf_counter() - start_loop_t
+                    busy_wait(1 / fps - dt_s)
+                # timestamp = time.perf_counter() - start_episode_t
+                if events["exit_early"]:
+                    events["exit_early"] = False
+                    break
+            else:
+                while timestamp < control_time_s:
+                    start_loop_t = time.perf_counter()
+                    # set to origianl position
+                    helper_list = [0,0,0,0,0,0,0]
+                    robot.mc.send_angles(helper_list[:-1], 40)
+                    robot.mc.set_gripper_state(helper_list[-1], 40)
+                    state = torch.from_numpy(np.array(helper_list)).to(torch.float32)
+                    after_action = torch.from_numpy(np.array(helper_list)).to(torch.float32)
+                    images = {}
+                    for name in robot.cameras:
+                        before_camread_t = time.perf_counter()
+                        images[name] = robot.cameras[name].async_read()
+                        images[name] = torch.from_numpy(images[name])
+                        robot.logs[f"read_camera_{name}_dt_s"] = robot.cameras[name].logs["delta_timestamp_s"]
+                        robot.logs[f"async_read_camera_{name}_dt_s"] = time.perf_counter() - before_camread_t
+
+                    # Populate output dictionaries
+                    observation, action = {}, {}
+                    observation["observation.state"] = state
+                    action["action"] = after_action
+                    for name in robot.cameras:
+                        observation[f"observation.images.{name}"] = images[name]
+                    if dataset is not None:
+                        frame = {**observation, **action, "task": single_task}
+                        dataset.add_frame(frame)
+                    if display_cameras and not is_headless():
+                        image_keys = [key for key in observation if "image" in key]
+                        for key in image_keys:
+                            cv2.imshow(key, cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR))
+                        cv2.waitKey(1)
+                    if fps is not None:
+                        dt_s = time.perf_counter() - start_loop_t
+                        busy_wait(1 / fps - dt_s)
+                    timestamp = time.perf_counter() - start_episode_t
+                    if events["exit_early"]:
+                        events["exit_early"] = False
+                        break
+    else:
+        # inference
+        while timestamp < control_time_s:
+            start_loop_t = time.perf_counter()
+            state, gripper_value = None, None
+            while not state or not gripper_value:
+                state = robot.mc.get_angles()
+                gripper_value = robot.mc.get_gripper_value()
+            print("state ", state)
+            gripper = 1 if gripper_value <= 50 else 0
+            state = torch.from_numpy(np.array(state + [gripper])).to(torch.float32)
+
+            images = {}
+            for name in robot.cameras:
+                before_camread_t = time.perf_counter()
+                images[name] = robot.cameras[name].async_read()
+                images[name] = torch.from_numpy(images[name])
+                robot.logs[f"read_camera_{name}_dt_s"] = robot.cameras[name].logs["delta_timestamp_s"]
+                robot.logs[f"async_read_camera_{name}_dt_s"] = time.perf_counter() - before_camread_t
+
+            # Populate output dictionaries and format to pytorch
+            observation = {}
+            observation["observation.state"] = state
+            for name in robot.cameras:
+                observation[f"observation.images.{name}"] = images[name]
+
+            if policy is not None:
+                pred_action = predict_action(observation, policy, device, use_amp)
+                # Action can eventually be clipped using `max_relative_target`,
+                # so action actually sent is saved in the dataset.
+                # move robot to pred_action
+                action = robot.send_action(pred_action)
+                action = {"action": action}
+            if dataset is not None:
+                frame = {**observation, **action, "task": single_task}
+                dataset.add_frame(frame)
+            if display_cameras and not is_headless():
+                image_keys = [key for key in observation if "image" in key]
+                for key in image_keys:
+                    cv2.imshow(key, cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR))
+                cv2.waitKey(1)
+            if fps is not None:
+                dt_s = time.perf_counter() - start_loop_t
+                busy_wait(1 / fps - dt_s)
+            timestamp = time.perf_counter() - start_episode_t
+            if events["exit_early"]:
+                events["exit_early"] = False
+                break
 
 
 def stop_recording(robot, listener, display_cameras):

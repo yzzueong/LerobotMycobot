@@ -24,7 +24,10 @@ from lerobot.common.robot_devices.robots.configs import (
     RobotConfig,
     So100RobotConfig,
     StretchRobotConfig,
+    MycobotRobotConfig,
 )
+from lerobot.common.robot_devices.robots.mycobot_manipulator import MycobotManipulator
+
 
 
 def get_arm_id(name, arm_type):
@@ -58,6 +61,8 @@ def make_robot_config(robot_type: str, **kwargs) -> RobotConfig:
         return MossRobotConfig(**kwargs)
     elif robot_type == "so100":
         return So100RobotConfig(**kwargs)
+    elif robot_type=="mycobot":
+        return MycobotRobotConfig(**kwargs)
     elif robot_type == "stretch":
         return StretchRobotConfig(**kwargs)
     elif robot_type == "lekiwi":
@@ -67,6 +72,8 @@ def make_robot_config(robot_type: str, **kwargs) -> RobotConfig:
 
 
 def make_robot_from_config(config: RobotConfig):
+    if config.type.lower() == "mycobot":
+        return MycobotManipulator(ip="192.168.137.218", port=9000, config=config)
     if isinstance(config, ManipulatorRobotConfig):
         from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
 
