@@ -13,6 +13,7 @@
 # limitations under the License.
 import datetime as dt
 import os
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Type
@@ -28,6 +29,7 @@ from lerobot.common.utils.hub import HubMixin
 from lerobot.configs import parser
 from lerobot.configs.default import DatasetConfig, EvalConfig, WandBConfig
 from lerobot.configs.policies import PreTrainedConfig
+from lerobot.common.utils.utils import auto_select_torch_device, is_amp_available
 
 TRAIN_CONFIG_NAME = "train_config.json"
 
@@ -46,6 +48,10 @@ class TrainPipelineConfig(HubMixin):
     # Note that when resuming a run, the default behavior is to use the configuration from the checkpoint,
     # regardless of what's provided with the training command at the time of resumption.
     resume: bool = False
+    device: str | None = None  # cuda | cpu | mp
+    # `use_amp` determines whether to use Automatic Mixed Precision (AMP) for training and evaluation. With AMP,
+    # automatic gradient scaling is used.
+    use_amp: bool = False
     # `seed` is used for training (eg: model initialization, dataset shuffling)
     # AND for the evaluation environments.
     seed: int | None = 1000
@@ -68,6 +74,17 @@ class TrainPipelineConfig(HubMixin):
         self.checkpoint_path = None
 
     def validate(self):
+        if not self.device:
+            logging.warning("No device specified, trying to infer device automatically")
+            device = auto_select_torch_device()
+            self.device = device.type
+
+            # Automatically deactivate AMP if necessary
+        if self.use_amp and not is_amp_available(self.device):
+            logging.warning(
+                f"Automatic Mixed Precision (amp) is not available on device '{self.device}'. Deactivating AMP."
+            )
+            self.use_amp = False
         # HACK: We parse again the cli args here to get the pretrained paths if there was some.
         policy_path = parser.get_path_arg("policy")
         if policy_path:
