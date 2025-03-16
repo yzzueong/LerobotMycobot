@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import logging
-
+import torch
 from torch import nn
 
 from lerobot.common.datasets.lerobot_dataset import LeRobotDatasetMetadata
@@ -75,6 +75,7 @@ def make_policy_config(policy_type: str, **kwargs) -> PreTrainedConfig:
 
 def make_policy(
     cfg: PreTrainedConfig,
+    device: str | torch.device,
     ds_meta: LeRobotDatasetMetadata | None = None,
     env_cfg: EnvConfig | None = None,
 ) -> PreTrainedPolicy:
@@ -86,6 +87,7 @@ def make_policy(
     Args:
         cfg (PreTrainedConfig): The config of the policy to make. If `pretrained_path` is set, the policy will
             be loaded with the weights from that path.
+        device (str): the device to load the policy onto.
         ds_meta (LeRobotDatasetMetadata | None, optional): Dataset metadata to take input/output shapes and
             statistics to use for (un)normalization of inputs/outputs in the policy. Defaults to None.
         env_cfg (EnvConfig | None, optional): The config of a gym environment to parse features from. Must be
@@ -142,7 +144,7 @@ def make_policy(
         # Make a fresh policy.
         policy = policy_cls(**kwargs)
 
-    policy.to(cfg.device)
+    policy.to(device)
     assert isinstance(policy, nn.Module)
 
     # policy = torch.compile(policy, mode="reduce-overhead")
