@@ -54,6 +54,10 @@ class RecordControlConfig(ControlConfig):
     # Root directory where the dataset will be stored (e.g. 'dataset/path').
     root: str | Path | None = None
     policy: PreTrainedConfig | None = None
+    device: str | None = None  # cuda | cpu | mp
+    # `use_amp` determines whether to use Automatic Mixed Precision (AMP) for training and evaluation. With AMP,
+    # automatic gradient scaling is used.
+    use_amp: bool = False
     # Limit the frames per second. By default, uses the policy fps.
     fps: int | None = None
     # Number of seconds before starting data collection. It allows the robot devices to warmup and synchronize.
