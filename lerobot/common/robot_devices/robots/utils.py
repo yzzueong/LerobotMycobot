@@ -73,7 +73,7 @@ def make_robot_config(robot_type: str, **kwargs) -> RobotConfig:
 
 def make_robot_from_config(config: RobotConfig):
     if config.type.lower() == "mycobot":
-        return MycobotManipulator(ip="xxx.xxx.xxx.xxx", port=9000, config=config)
+        return MycobotManipulator(config=config)
     if isinstance(config, ManipulatorRobotConfig):
         from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
 

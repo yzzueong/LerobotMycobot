@@ -75,7 +75,6 @@ def make_policy_config(policy_type: str, **kwargs) -> PreTrainedConfig:
 
 def make_policy(
     cfg: PreTrainedConfig,
-    device: str | torch.device,
     ds_meta: LeRobotDatasetMetadata | None = None,
     env_cfg: EnvConfig | None = None,
 ) -> PreTrainedPolicy:
@@ -144,7 +143,7 @@ def make_policy(
         # Make a fresh policy.
         policy = policy_cls(**kwargs)
 
-    policy.to(device)
+    policy.to(cfg.device)
     assert isinstance(policy, nn.Module)
 
     # policy = torch.compile(policy, mode="reduce-overhead")

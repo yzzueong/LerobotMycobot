@@ -1,22 +1,20 @@
 import gc
-import threading
 import time
 import numpy as np
 
 from lerobot.common.robot_devices.cameras.utils import make_cameras_from_configs
-from lerobot.common.robot_devices.robots.configs import ManipulatorRobotConfig
-from lerobot.common.robot_devices.utils import RobotDeviceAlreadyConnectedError, RobotDeviceNotConnectedError
-# from manipulator import ManipulatorRobot
+from lerobot.common.robot_devices.robots.configs import MycobotRobotConfig
+from lerobot.common.robot_devices.utils import RobotDeviceNotConnectedError
 import torch
 from pymycobot import MyCobot320Socket
 
 
 class MycobotManipulator:
-    def __init__(self, ip, port, config: ManipulatorRobotConfig):
+    def __init__(self, config: MycobotRobotConfig):
         self.config = config
         self.mc = None
-        self.ip = ip
-        self.port = port
+        self.ip = config.ip
+        self.port = int(config.port)
         self.robot_type = self.config.type
         self.cameras = make_cameras_from_configs(self.config.cameras)
         self.is_connected = False

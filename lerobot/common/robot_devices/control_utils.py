@@ -487,7 +487,7 @@ def control_loop_mycobot(
         while timestamp < control_time_s:
             start_loop_t = time.perf_counter()
             state, gripper_value = None, None
-            while not state or not gripper_value:
+            while not state or state==-1 or not gripper_value:
                 state = robot.mc.get_angles()
                 gripper_value = robot.mc.get_gripper_value()
             print("state ", state)

@@ -298,8 +298,8 @@ def record(
             episode_time_s=cfg.episode_time_s,
             display_cameras=cfg.display_cameras,
             policy=policy,
-            device=cfg.device,
-            use_amp=cfg.use_amp,
+            device=cfg.policy.device,
+            use_amp=cfg.policy.use_amp,
             fps=cfg.fps,
             single_task=cfg.single_task,
         )
