@@ -23,6 +23,7 @@ import traceback
 from contextlib import nullcontext
 from copy import copy
 from functools import cache
+import threading
 
 import cv2
 import torch
@@ -204,6 +205,8 @@ def record_episode(
     episode_time_s,
     display_cameras,
     policy,
+    device,
+    use_amp,
     fps,
     single_task,
 ):
@@ -383,6 +386,7 @@ def control_loop_mycobot(
                 while recording:
                     angles, gripper = None, None
                     while not angles or not gripper:
+                        print("cannot get angles or gripper value")
                         angles = robot.mc.get_angles()
                         gripper = robot.mc.get_gripper_value()
                     gripper = 1 if gripper <= robot.gripper_open_close_threshold else 0
@@ -440,44 +444,44 @@ def control_loop_mycobot(
                 if events["exit_early"]:
                     events["exit_early"] = False
                     break
-            else:
-                while timestamp < control_time_s:
-                    start_loop_t = time.perf_counter()
-                    # set to origianl position
-                    helper_list = [0,0,0,0,0,0,0]
-                    robot.mc.send_angles(helper_list[:-1], 40)
-                    robot.mc.set_gripper_state(helper_list[-1], 40)
-                    state = torch.from_numpy(np.array(helper_list)).to(torch.float32)
-                    after_action = torch.from_numpy(np.array(helper_list)).to(torch.float32)
-                    images = {}
-                    for name in robot.cameras:
-                        before_camread_t = time.perf_counter()
-                        images[name] = robot.cameras[name].async_read()
-                        images[name] = torch.from_numpy(images[name])
-                        robot.logs[f"read_camera_{name}_dt_s"] = robot.cameras[name].logs["delta_timestamp_s"]
-                        robot.logs[f"async_read_camera_{name}_dt_s"] = time.perf_counter() - before_camread_t
+        else:
+            while timestamp < control_time_s:
+                start_loop_t = time.perf_counter()
+                # set to origianl position
+                helper_list = [0,0,0,0,0,0,0]
+                robot.mc.send_angles(helper_list[:-1], 40)
+                robot.mc.set_gripper_state(helper_list[-1], 40)
+                state = torch.from_numpy(np.array(helper_list)).to(torch.float32)
+                after_action = torch.from_numpy(np.array(helper_list)).to(torch.float32)
+                images = {}
+                for name in robot.cameras:
+                    before_camread_t = time.perf_counter()
+                    images[name] = robot.cameras[name].async_read()
+                    images[name] = torch.from_numpy(images[name])
+                    robot.logs[f"read_camera_{name}_dt_s"] = robot.cameras[name].logs["delta_timestamp_s"]
+                    robot.logs[f"async_read_camera_{name}_dt_s"] = time.perf_counter() - before_camread_t
 
-                    # Populate output dictionaries
-                    observation, action = {}, {}
-                    observation["observation.state"] = state
-                    action["action"] = after_action
-                    for name in robot.cameras:
-                        observation[f"observation.images.{name}"] = images[name]
-                    if dataset is not None:
-                        frame = {**observation, **action, "task": single_task}
-                        dataset.add_frame(frame)
-                    if display_cameras and not is_headless():
-                        image_keys = [key for key in observation if "image" in key]
-                        for key in image_keys:
-                            cv2.imshow(key, cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR))
-                        cv2.waitKey(1)
-                    if fps is not None:
-                        dt_s = time.perf_counter() - start_loop_t
-                        busy_wait(1 / fps - dt_s)
-                    timestamp = time.perf_counter() - start_episode_t
-                    if events["exit_early"]:
-                        events["exit_early"] = False
-                        break
+                # Populate output dictionaries
+                observation, action = {}, {}
+                observation["observation.state"] = state
+                action["action"] = after_action
+                for name in robot.cameras:
+                    observation[f"observation.images.{name}"] = images[name]
+                if dataset is not None:
+                    frame = {**observation, **action, "task": single_task}
+                    dataset.add_frame(frame)
+                if display_cameras and not is_headless():
+                    image_keys = [key for key in observation if "image" in key]
+                    for key in image_keys:
+                        cv2.imshow(key, cv2.cvtColor(observation[key].numpy(), cv2.COLOR_RGB2BGR))
+                    cv2.waitKey(1)
+                if fps is not None:
+                    dt_s = time.perf_counter() - start_loop_t
+                    busy_wait(1 / fps - dt_s)
+                timestamp = time.perf_counter() - start_episode_t
+                if events["exit_early"]:
+                    events["exit_early"] = False
+                    break
     else:
         # inference
         while timestamp < control_time_s:
