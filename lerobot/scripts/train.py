@@ -142,6 +142,7 @@ def train(cfg: TrainPipelineConfig):
         ds_meta=dataset.meta,
     )
 
+
     logging.info("Creating optimizer and scheduler")
     optimizer, lr_scheduler = make_optimizer_and_scheduler(cfg, policy)
     grad_scaler = GradScaler(device.type, enabled=cfg.policy.use_amp)

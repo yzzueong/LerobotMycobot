@@ -192,9 +192,6 @@ class PaliGemmaWithExpertModel(PreTrainedModel):
             self.paligemma.eval()
             for params in self.paligemma.parameters():
                 params.requires_grad = False
-            self.gemma_expert.eval()
-            for params in self.gemma_expert.parameters():
-                params.requires_grad = False
 
     def train(self, mode: bool = True):
         super().train(mode)
@@ -204,7 +201,6 @@ class PaliGemmaWithExpertModel(PreTrainedModel):
 
         if self.config.train_expert_only:
             self.paligemma.eval()
-            self.gemma_expert.eval()
 
     def to_bfloat16_like_physical_intelligence(self):
         self.paligemma = self.paligemma.to(dtype=torch.bfloat16)
