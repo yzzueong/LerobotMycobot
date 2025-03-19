@@ -218,15 +218,15 @@ def train(cfg: TrainPipelineConfig):
             cfg.optimizer.grad_clip_norm,
             grad_scaler=grad_scaler,
             lr_scheduler=lr_scheduler,
-            use_amp=cfg.use_amp,
+            use_amp=cfg.policy.use_amp,
         )
 
-        # Note: eval and checkpoint happens *after* the `step`th training update has completed, so we
-        # increment `step` here.
+        # Note: eval and checkpoint happens *after* the `step`th training update has completed or one epoch has completed
+        # , so we increment `step` here.
         step += 1
         train_tracker.step()
         is_log_step = cfg.log_freq > 0 and step % cfg.log_freq == 0
-        is_saving_step = step % cfg.save_freq == 0 or step == cfg.steps
+        is_saving_step = step % cfg.save_freq == 0 or step == cfg.steps or train_tracker.epochs == int(train_tracker.epochs)
         is_eval_step = cfg.eval_freq > 0 and step % cfg.eval_freq == 0
 
         if is_log_step:
@@ -251,7 +251,7 @@ def train(cfg: TrainPipelineConfig):
             logging.info(f"Eval policy at step {step}")
             with (
                 torch.no_grad(),
-                torch.autocast(device_type=device.type) if cfg.use_amp else nullcontext(),
+                torch.autocast(device_type=device.type) if cfg.policy.use_amp else nullcontext(),
             ):
                 eval_info = eval_policy(
                     eval_env,
