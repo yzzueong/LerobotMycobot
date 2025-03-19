@@ -139,7 +139,6 @@ def train(cfg: TrainPipelineConfig):
     logging.info("Creating policy")
     policy = make_policy(
         cfg=cfg.policy,
-        device=device,
         ds_meta=dataset.meta,
     )
 
