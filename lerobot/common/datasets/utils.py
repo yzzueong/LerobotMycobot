@@ -466,6 +466,56 @@ def get_episode_data_index(
     }
 
 
+def check_timestamps_sync_v20(
+    hf_dataset: datasets.Dataset,
+    episode_data_index: dict[str, torch.Tensor],
+    fps: int,
+    tolerance_s: float,
+    raise_value_error: bool = True,
+) -> bool:
+    """
+    This check is to make sure that each timestamps is separated to the next by 1/fps +/- tolerance to
+    account for possible numerical error.
+    """
+    timestamps = torch.stack(hf_dataset["timestamp"])
+    diffs = torch.diff(timestamps)
+    within_tolerance = torch.abs(diffs - 1 / fps) <= tolerance_s
+
+    # We mask differences between the timestamp at the end of an episode
+    # and the one at the start of the next episode since these are expected
+    # to be outside tolerance.
+    mask = torch.ones(len(diffs), dtype=torch.bool)
+    ignored_diffs = episode_data_index["to"][:-1] - 1
+    mask[ignored_diffs] = False
+    filtered_within_tolerance = within_tolerance[mask]
+
+    if not torch.all(filtered_within_tolerance):
+        # Track original indices before masking
+        original_indices = torch.arange(len(diffs))
+        filtered_indices = original_indices[mask]
+        outside_tolerance_filtered_indices = torch.nonzero(~filtered_within_tolerance)  # .squeeze()
+        outside_tolerance_indices = filtered_indices[outside_tolerance_filtered_indices]
+        episode_indices = torch.stack(hf_dataset["episode_index"])
+
+        outside_tolerances = []
+        for idx in outside_tolerance_indices:
+            entry = {
+                "timestamps": [timestamps[idx], timestamps[idx + 1]],
+                "diff": diffs[idx],
+                "episode_index": episode_indices[idx].item(),
+            }
+            outside_tolerances.append(entry)
+
+        if raise_value_error:
+            raise ValueError(
+                f"""One or several timestamps unexpectedly violate the tolerance inside episode range.
+                This might be due to synchronization issues with timestamps during data collection.
+                \n{pformat(outside_tolerances)}"""
+            )
+        return False
+
+    return True
+
 def check_timestamps_sync(
     timestamps: np.ndarray,
     episode_indices: np.ndarray,
