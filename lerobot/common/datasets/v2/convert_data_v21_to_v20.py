@@ -17,11 +17,6 @@ from lerobot.common.datasets.utils import write_info, EPISODES_STATS_PATH
 V20 = "v2.0"
 V21 = "v2.1"
 
-video_path = None
-episode_chunk = 0
-
-
-
 def convert_dataset(
     repo_id: str,
     branch: str | None = None,
