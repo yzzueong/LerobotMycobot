@@ -194,17 +194,17 @@ class PaliGemmaWithExpertModel(PreTrainedModel):
             r=16,  # LoR rank
             lora_alpha=16,
         )
-        # 打印所有层的名字和每一层的参数形状
-        for name, module in self.paligemma.named_modules():
-            # 如果层有参数，就打印它的名字和形状
-            for param_name, param in module.named_parameters():
-                print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
-        print("*"*100)
-        # 打印所有层的名字和每一层的参数形状
-        for name, module in self.gemma_expert.named_modules():
-            # 如果层有参数，就打印它的名字和形状
-            for param_name, param in module.named_parameters():
-                print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
+        # # 打印所有层的名字和每一层的参数形状
+        # for name, module in self.paligemma.named_modules():
+        #     # 如果层有参数，就打印它的名字和形状
+        #     for param_name, param in module.named_parameters():
+        #         print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
+        # print("*"*100)
+        # # 打印所有层的名字和每一层的参数形状
+        # for name, module in self.gemma_expert.named_modules():
+        #     # 如果层有参数，就打印它的名字和形状
+        #     for param_name, param in module.named_parameters():
+        #         print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
 
 
     def set_requires_grad(self):
@@ -236,7 +236,6 @@ class PaliGemmaWithExpertModel(PreTrainedModel):
             "vision_tower",
             "multi_modal",
         ]
-        print("training parameters: ", self.named_parameters())
         for name, param in self.named_parameters():
             if any(selector in name for selector in params_to_change_dtype):
                 param.data = param.data.to(dtype=torch.bfloat16)

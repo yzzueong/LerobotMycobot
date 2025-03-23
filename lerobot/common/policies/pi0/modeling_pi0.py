@@ -474,6 +474,11 @@ class PI0FlowMatching(nn.Module):
             use_lora=self.config.use_lora
         )
         self.paligemma_with_expert = PaliGemmaWithExpertModel(paligemma_with_export_config)
+        # 打印所有层的名字和每一层的参数形状
+        for name, module in self.paligemma_with_expert.named_modules():
+            # 如果层有参数，就打印它的名字和形状
+            for param_name, param in module.named_parameters():
+                print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
 
         # Projections are float32
         self.state_proj = nn.Linear(self.config.max_state_dim, self.config.proj_width)
