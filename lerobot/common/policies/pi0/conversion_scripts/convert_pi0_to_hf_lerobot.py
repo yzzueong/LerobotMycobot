@@ -187,7 +187,10 @@ def slice_paligemma_state_dict(state_dict, config):
             f"llm/layers/pre_attention_norm_1/scale{suffix}",
             f"llm/layers/pre_ffw_norm_1/scale{suffix}",
         ]:
-            final_state_dict[key] = torch.from_numpy(value)
+            if value.dtype == "bfloat16":
+                final_state_dict[key] = torch.tensor(value.astype(np.float32)).to(torch.bfloat16)
+            else:
+                final_state_dict[key] = torch.from_numpy(value)
         else:
             expert_dict[key] = value
 
@@ -249,7 +252,10 @@ def slice_gemma_state_dict(state_dict, config, num_expert=1):
     final_state_dict = {}
     for key, value in state_dict.items():
         if not isinstance(value, torch.Tensor):
-            final_state_dict[key] = torch.from_numpy(value)
+            if value.dtype == "bfloat16":
+                final_state_dict[key] = torch.tensor(value.astype(np.float32)).to(torch.bfloat16)
+            else:
+                final_state_dict[key] = torch.from_numpy(value)
         else:
             final_state_dict[key] = value
     return final_state_dict

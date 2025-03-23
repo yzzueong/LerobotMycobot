@@ -85,6 +85,8 @@ class PI0Config(PreTrainedConfig):
     scheduler_decay_steps: int = 30_000
     scheduler_decay_lr: float = 2.5e-6
 
+    use_lora = True
+
     # TODO: Add EMA
 
     def __post_init__(self):
