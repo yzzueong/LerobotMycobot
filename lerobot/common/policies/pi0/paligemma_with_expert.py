@@ -195,6 +195,12 @@ class PaliGemmaWithExpertModel(PreTrainedModel):
             lora_alpha=16,
         )
         # 打印所有层的名字和每一层的参数形状
+        for name, module in self.paligemma.named_modules():
+            # 如果层有参数，就打印它的名字和形状
+            for param_name, param in module.named_parameters():
+                print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
+        print("*"*100)
+        # 打印所有层的名字和每一层的参数形状
         for name, module in self.gemma_expert.named_modules():
             # 如果层有参数，就打印它的名字和形状
             for param_name, param in module.named_parameters():
