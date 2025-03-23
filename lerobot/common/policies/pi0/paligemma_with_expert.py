@@ -25,7 +25,6 @@ from transformers import (
     PretrainedConfig,
     PreTrainedModel,
 )
-from peft import get_peft_model, LoraConfig, TaskType
 from transformers.models.auto import CONFIG_MAPPING
 
 from lerobot.common.policies.pi0.flex_attention import flex_attention_forward
@@ -68,13 +67,11 @@ class PaliGemmaWithExpertConfig(PretrainedConfig):
         freeze_vision_encoder: bool = True,
         train_expert_only: bool = True,
         attention_implementation: str = "eager",
-        use_lora: bool = False,
         **kwargs,
     ):
         self.freeze_vision_encoder = freeze_vision_encoder
         self.train_expert_only = train_expert_only
         self.attention_implementation = attention_implementation
-        self.use_lora = use_lora
 
         if paligemma_config is None:
             # Default config from Pi0
@@ -179,32 +176,11 @@ class PaliGemmaWithExpertModel(PreTrainedModel):
         self.config = config
         self.paligemma = PaliGemmaForConditionalGeneration(config=config.paligemma_config)
         self.gemma_expert = GemmaForCausalLM(config=config.gemma_expert_config)
-        if config.use_lora:
-            # add lora layer
-            self.add_lora_layer()
         # Remove unused embed_tokens
         self.gemma_expert.model.embed_tokens = None
 
         self.to_bfloat16_like_physical_intelligence()
         self.set_requires_grad()
-
-    def add_lora_layer(self):
-        # add lora layer for paligemma and gemma_expert
-        lora_config = LoraConfig(
-            r=16,  # LoR rank
-            lora_alpha=16,
-        )
-        # # 打印所有层的名字和每一层的参数形状
-        # for name, module in self.paligemma.named_modules():
-        #     # 如果层有参数，就打印它的名字和形状
-        #     for param_name, param in module.named_parameters():
-        #         print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
-        # print("*"*100)
-        # # 打印所有层的名字和每一层的参数形状
-        # for name, module in self.gemma_expert.named_modules():
-        #     # 如果层有参数，就打印它的名字和形状
-        #     for param_name, param in module.named_parameters():
-        #         print(f"Layer Name: {name}, Parameter Name: {param_name}, Shape: {param.shape}")
 
 
     def set_requires_grad(self):
