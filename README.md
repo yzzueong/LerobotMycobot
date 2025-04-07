@@ -48,6 +48,27 @@ $HF_USER = huggingface-cli whoami | Select-String -Pattern "^\S+" | ForEach-Obje
 HF_USER=$(huggingface-cli whoami | head -n 1)
 ```
 
+To get Mycobot 320 gripper value, add the following code in pymycobot package Mycobot320Socket.py file
+```python
+def get_gripper_value(self, gripper_type=None):
+    """Get the value of gripper.
+
+    Args:
+        gripper_type (int): default 1
+            1: Adaptive gripper
+            3: Parallel gripper
+            4: Flexible gripper
+
+    Return:
+        gripper value (int)
+    """
+    if gripper_type is None:
+        return self._mesg(ProtocolCode.GET_GRIPPER_VALUE, has_reply=True)
+    else:
+        self.calibration_parameters(class_name=self.__class__.__name__, gripper_type=gripper_type)
+        return self._mesg(ProtocolCode.GET_GRIPPER_VALUE, gripper_type, has_reply=True)
+```
+
 ## Detect Camera and get your camera id
 ```bash
 python .\lerobot\common\robot_devices\cameras\opencv.py --images-dir outputs/images_from_opencv_cameras
@@ -102,7 +123,10 @@ python lerobot/scripts/train.py \
 
 ```
 
-## Convert JAX pi0 model to Pytorch
+## Pi0 model
+You need to jump to https://github.com/yzzueong/openpi to finetune the openpi model using your lerobot dataset.
+
+### Convert JAX pi0 model to Pytorch
 There are two steps to finish this procedure.
 ```bash
 python lerobot/common/policies/pi0/conversion_scripts/convert_pi0_to_hf_lerobot.py \
