@@ -117,6 +117,7 @@ python lerobot/scripts/train.py \
   --dataset.repo_id=huggingface/dataset/id \
   --steps=5
 ```
+When you test your Pi0 model, you need to change lerobot/common/policies/pi0/modeling_pi0.py:385 to your instruction.
 
 ## Test your models
 Before you test your model, you need to check parameters in `path/to/your/checkpoint/pretrained_model/config.json`.
