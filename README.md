@@ -20,7 +20,7 @@ To run this project, you also need to follow Lerobot project's README.md.
 Download our source code:
 ```bash
 git clone https://github.com/yzzueong/LerobotMycobot.git
-cd lerobot
+cd LerobotMycobot
 ```
 
 Create a virtual environment with Python 3.10 and activate it, e.g. with [`miniconda`](https://docs.anaconda.com/free/miniconda/index.html):
