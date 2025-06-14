@@ -33,7 +33,10 @@ Install 🤗 LeRobot, Mycobot and Pi0:
 ```bash
 pip install -e ".[mycobot, pi0]"
 ```
-
+If you need RLBench:
+```shell
+pip install -e ".[rlbench]"
+```
 To use [Weights and Biases](https://docs.wandb.ai/quickstart) for experiment tracking, log in with
 ```bash
 wandb login

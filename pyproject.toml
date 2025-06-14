@@ -97,6 +97,7 @@ umi = ["imagecodecs>=2024.1.1"]
 video_benchmark = ["scikit-image>=0.23.2", "pandas>=2.2.2"]
 xarm = ["gym-xarm>=0.1.1 ; python_version < '4.0'"]
 mycobot = ["pymycobot>=3.9.0", "keyboard>=0.13.5"]
+rlbench = ["rlbench @ git+https://github.com/eugeneteoh/RLBench.git@gymnasium"]
 
 [tool.poetry]
 requires-poetry = ">=2.1"
