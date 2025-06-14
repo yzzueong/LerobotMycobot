@@ -333,6 +333,10 @@ def reset_environment(robot, events, reset_time_s, fps):
     )
 
 
+def clip_by_range(data):
+    ranges = [(-350, 350), (-350, 350), (-41, 523.9), (-180, 180), (-180, 180), (-180, 180)]
+    return [min(max(x, min_val), max_val) for x, (min_val, max_val) in zip(data, ranges)]
+
 @safe_stop_image_writer
 def control_loop_mycobot(
     robot,
@@ -385,13 +389,16 @@ def control_loop_mycobot(
             def _record():
                 while recording:
                     angles, gripper = None, None
-                    while not angles or not gripper:
-                        print("cannot get angles or gripper value")
-                        angles = robot.mc.get_angles()
+                    while not angles or not gripper or angles==-1:
+                        # print("cannot get angles or gripper value")
+                        angles = robot.mc.get_coords()
+
+                        # angles = robot.mc.get_angles()
                         gripper = robot.mc.get_gripper_value()
                     gripper = 1 if gripper <= robot.gripper_open_close_threshold else 0
 
                     if angles:
+                        angles = clip_by_range(angles)
                         record_list.append(angles + [gripper])
                         time.sleep(0.1)
 
@@ -409,7 +416,8 @@ def control_loop_mycobot(
             print("start replay action and collect data...")
             for pre_angles, after_angles in zip(record_list, record_list[1:]):
                 start_loop_t = time.perf_counter()
-                robot.mc.send_angles(pre_angles[:-1], 40)  # joints
+                robot.mc.send_coords(pre_angles[:-1], 40)  # joints
+                # robot.mc.send_angles(pre_angles[:-1], 40)  # joints
                 robot.mc.set_gripper_state(pre_angles[-1], 40)  # gripper
 
                 state = torch.from_numpy(np.array(pre_angles)).to(torch.float32)
@@ -449,7 +457,8 @@ def control_loop_mycobot(
                 start_loop_t = time.perf_counter()
                 # set to origianl position
                 helper_list = [0,0,0,0,0,0,0]
-                robot.mc.send_angles(helper_list[:-1], 40)
+                robot.mc.send_coords(helper_list[:-1], 40)
+                # robot.mc.send_angles(helper_list[:-1], 40)
                 robot.mc.set_gripper_state(helper_list[-1], 40)
                 state = torch.from_numpy(np.array(helper_list)).to(torch.float32)
                 after_action = torch.from_numpy(np.array(helper_list)).to(torch.float32)
@@ -488,7 +497,8 @@ def control_loop_mycobot(
             start_loop_t = time.perf_counter()
             state, gripper_value = None, None
             while not state or state==-1 or not gripper_value:
-                state = robot.mc.get_angles()
+                state = robot.mc.get_coords()
+                # state = robot.mc.get_angles()
                 gripper_value = robot.mc.get_gripper_value()
             print("state ", state)
             gripper = 1 if gripper_value <= 50 else 0
@@ -513,6 +523,7 @@ def control_loop_mycobot(
                 # Action can eventually be clipped using `max_relative_target`,
                 # so action actually sent is saved in the dataset.
                 # move robot to pred_action
+                pred_action = clip_by_range(pred_action)
                 action = robot.send_action(pred_action)
                 action = {"action": action}
             if dataset is not None:

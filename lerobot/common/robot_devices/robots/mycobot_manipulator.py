@@ -78,7 +78,8 @@ class MycobotManipulator:
         action_sent.append(goal_pos)
         goal_pos = goal_pos.numpy().astype(np.float32).tolist()
         print(goal_pos)
-        self.mc.send_angles(goal_pos[:-1], 40)
+        self.mc.send_coords(goal_pos[:-1], 40)
+        # self.mc.send_angles(goal_pos[:-1], 40)
         self.mc.set_gripper_state(1 if goal_pos[-1] >= 0.5 else 0, 40)
         return torch.cat(action_sent)
 
